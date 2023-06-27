@@ -1,0 +1,7 @@
+{
+    "nickname": "DEV",
+    "twitch_identity": {
+        "username": "BOT_NAME",
+        "password": "WRITE_YOUR_TWITCH_TOKEN"
+    }
+}
