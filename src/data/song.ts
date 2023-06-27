@@ -37,7 +37,6 @@ export class Song{
 export class SongFactory{
     private static list: {[key: number]: Song} = [];
     private static blackWordList: string[] = [
-        'code',
         'nonstop',
         'extended',
         'original ver',
