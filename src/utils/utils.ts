@@ -26,7 +26,7 @@ export class SongAliases{
             name = name.name.toLowerCase();
         }
         this.list[alias] = `${name}${!!composer ? `||${composer}` : ''}`;
-        fs.writeFileSync('aliases.json', JSON.stringify(this.list), 'utf-8');
+        fs.writeFileSync('./resources/aliases.json', JSON.stringify(this.list), 'utf-8');
         return this.list[alias];
     }
 }
