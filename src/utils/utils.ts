@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import { Song, SongFactory } from "../data/song";
+import { Song } from "../data/song";
 
 export interface JSONData{
     [key: string]: any;

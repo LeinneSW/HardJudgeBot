@@ -311,7 +311,7 @@ function findSongPhase(nameData: string): string | Song[]{
     let composer = null;
     if(songInfo.length > 1){
         dlc = DLC.parse(songInfo[1]);
-        if(!dlc || songInfo[1] === 'ESTi'){
+        if(!dlc){
             composer = songInfo[1];
         }
     }else{
@@ -328,6 +328,10 @@ function findSongPhase(nameData: string): string | Song[]{
     }else{
         findSongList = SongFactory.find(name);
     }
+    if(findSongList.length < 1 && !!dlc && dlc.dlcCode === 'ESTI'){
+        findSongList = SongFactory.findByComposer(name, 'esti');
+    }
+    
     if(findSongList.length < 1){
         return `[하판봇] '${songInfo[0]}${songInfo.length > 1 ? `(${songInfo[1]})` : ""}'에 해당되는 곡을 찾을 수 없었습니다.`;
     }
