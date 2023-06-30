@@ -1,19 +1,8 @@
 export class DLC{
-    constructor(
-        public readonly dlc: string,
-        public readonly dlcCode?: string
-    ){}
-
-    toString(): string{
-        return this.dlcCode || this.dlc;
-    }
-}
-
-export class DLCUtils{
     private static full: string[] = [];
     private static dlcCode: string[] = [];
 
-    static add(dlc: DLC): void{
+    static addDefault(dlc: DLC): void{
         if(!dlc.dlcCode || this.dlcCode.includes(dlc.dlcCode)){
             return;
         }
@@ -37,5 +26,14 @@ export class DLCUtils{
 
     static equals(a: DLC, b: DLC): boolean{
         return a.dlc === b.dlc && (!a.dlcCode || !b.dlcCode || a.dlcCode === b.dlcCode)
+    }
+
+    constructor(
+        public readonly dlc: string,
+        public readonly dlcCode?: string
+    ){}
+
+    toString(): string{
+        return this.dlcCode || this.dlc;
     }
 }

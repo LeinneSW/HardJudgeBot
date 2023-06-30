@@ -2,7 +2,7 @@ import axios from "axios";
 import * as fs from 'fs';
 import { Client } from "tmi.js";
 import { Song, SongFactory } from "./data/song";
-import { DLCUtils } from "./data/dlc";
+import { DLC } from "./data/dlc";
 import { Difficulty } from "./data/difficulty";
 import { createInterface } from "readline";
 import { JSONData, SongAliases, Utils } from "./utils/utils";
@@ -30,7 +30,7 @@ axios.get('https://v-archive.net/db/songs.json')
 .then(body => {
     for(const songData of body.data){
         const song = Song.parse(songData);
-        DLCUtils.add(song.dlc);
+        DLC.addDefault(song.dlc);
         SongFactory.add(song);
     }
     console.log('[하판봇] 곡 정보를 불러왔습니다.');
@@ -310,7 +310,7 @@ function findSongPhase(nameData: string): string | Song[]{
     let dlc = null;
     let composer = null;
     if(songInfo.length > 1){
-        dlc = DLCUtils.parse(songInfo[1]);
+        dlc = DLC.parse(songInfo[1]);
         if(!dlc || songInfo[1] === 'ESTi'){
             composer = songInfo[1];
         }
