@@ -328,10 +328,10 @@ function findSongPhase(nameData: string): string | Song[]{
     }else{
         findSongList = SongFactory.find(name);
     }
-    if(findSongList.length < 1 && !!dlc && dlc.dlcCode === 'ESTI'){
+    if(findSongList.length < 1 && dlc?.dlcCode === 'ESTI'){
         findSongList = SongFactory.findByComposer(name, 'esti');
     }
-    
+
     if(findSongList.length < 1){
         return `[하판봇] '${songInfo[0]}${songInfo.length > 1 ? `(${songInfo[1]})` : ""}'에 해당되는 곡을 찾을 수 없었습니다.`;
     }
