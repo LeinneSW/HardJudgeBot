@@ -110,4 +110,21 @@ export class SongFactory{
         }
         return exact.length > 0 ? exact : result;
     }
+
+    static findByESTi(name: string): Song[]{
+        const exact = [];
+        const result = [];
+        name = name.toLowerCase();
+        for(const id in this.list){
+            const song = this.list[id];
+            const lowerName = song.name.toLowerCase();
+            if(lowerName.includes(name) && (song.dlc.dlcCode === 'ESTI' || song.composer === 'ESTi')){
+                result.push(song);
+            }
+            if(lowerName === name && (song.dlc.dlcCode === 'ESTI' || song.composer === 'ESTi')){
+                exact.push(song);
+            }
+        }
+        return exact.length > 0 ? exact : result;
+    }
 }

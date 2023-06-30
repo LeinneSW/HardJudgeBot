@@ -309,9 +309,12 @@ function findSongPhase(nameData: string): string | Song[]{
     let name = songInfo[0].toLowerCase();
     let dlc = null;
     let composer = null;
+    let checkESTi = false;
     if(songInfo.length > 1){
         dlc = DLC.parse(songInfo[1]);
-        if(!dlc){
+        if(dlc?.dlcCode === 'ESTI'){
+            checkESTi = true;
+        }else if(!dlc){
             composer = songInfo[1];
         }
     }else{
@@ -321,15 +324,14 @@ function findSongPhase(nameData: string): string | Song[]{
         }
     }
     let findSongList;
-    if(!!dlc){
+    if(checkESTi){
+        findSongList = SongFactory.findByESTi(name);
+    }else if(!!dlc){
         findSongList = SongFactory.findByDLC(name, dlc);
     }else if(!!composer){
         findSongList = SongFactory.findByComposer(name, composer);
     }else{
         findSongList = SongFactory.find(name);
-    }
-    if(findSongList.length < 1 && dlc?.dlcCode === 'ESTI'){
-        findSongList = SongFactory.findByComposer(name, 'esti');
     }
 
     if(findSongList.length < 1){
