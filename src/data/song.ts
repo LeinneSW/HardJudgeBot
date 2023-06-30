@@ -1,6 +1,6 @@
 import { JSONData } from "../utils/utils";
 import { Difficulty } from "./difficulty";
-import { DLC, DLCUtils } from "./dlc";
+import { DLC } from "./dlc";
 
 export class Song{
     private constructor(
@@ -82,10 +82,10 @@ export class SongFactory{
         for(const id in this.list){
             const song = this.list[id];
             const lowerName = song.name.toLowerCase();
-            if(lowerName.includes(name) && DLCUtils.equals(song.dlc, dlc)){
+            if(lowerName.includes(name) && DLC.equals(song.dlc, dlc)){
                 result.push(song);
             }
-            if(lowerName === name && DLCUtils.equals(song.dlc, dlc)){
+            if(lowerName === name && DLC.equals(song.dlc, dlc)){
                 exact.push(song);
             }
         }
