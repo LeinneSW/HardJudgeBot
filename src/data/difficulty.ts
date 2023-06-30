@@ -50,8 +50,4 @@ export class Difficulty{
         }
         return new Difficulty(button, index);
     }
-
-    static isValid(difficulty: string): boolean{
-        return this.smallStr.includes(difficulty) || this.largeStr.includes(difficulty);
-    }
 }
