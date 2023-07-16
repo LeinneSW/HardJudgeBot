@@ -1,5 +1,9 @@
 {
-    "nickname": "DEV",
+    "v_archive": {
+        "nickname": "DEV",
+        "id": "1",
+        "token": "95d6c422-52b4-4016-8587-38c46a2e7917"
+    },
     "twitch_identity": {
         "username": "BOT_NAME",
         "password": "WRITE_YOUR_TWITCH_TOKEN"

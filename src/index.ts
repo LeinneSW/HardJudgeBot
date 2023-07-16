@@ -10,17 +10,24 @@ import { ScoreManager } from "./data/score";
 
 console.log('[하판봇] 하판봇이 시작됩니다.');
 
-const account = (() => {
-    const data = fs.readFileSync('./resources/account.txt', 'utf-8').trim().split(" ");
-    if(data.length < 2){
-        throw new Error("[하판봇] account.txt 파일이 잘못되었습니다.")
+const account: JSONData = (() => {
+    const account = JSON.parse(fs.readFileSync('./resources/account.json', 'utf-8'));
+    if(!account.v_archive || !account.twitch_identity?.username || !account.twitch_identity?.password){
+        throw new Error("[하판봇] account.json 파일이 잘못되었습니다.");
     }
-    return {id: data[0], token: data[1]}
+    
+    if(!account.v_archive.id || !account.v_archive.token){
+        const data = fs.readFileSync('./resources/account.txt', 'utf-8').trim().split(" ");
+        if(data.length < 2){
+            throw new Error("[하판봇] account.txt 파일이 잘못되었습니다.")
+        }
+        account.v_archive.id = data[0];
+        account.v_archive.token = data[1];
+        fs.unlinkSync('./resources/account.txt');
+        fs.writeFileSync('./resources/account.json', JSON.stringify(account, null, 4), 'utf-8');
+    }
+    return account;
 })();
-const accountData: JSONData = JSON.parse(fs.readFileSync('./resources/account.json', 'utf-8'));
-if(!accountData.nickname || typeof accountData.twitch_identity !== 'object'){
-    throw new Error("[하판봇] 데이터가 잘못되었습니다.");
-}
 console.log('[하판봇] 계정 정보를 불러왔습니다.');
 
 SongAliases.loadData();
@@ -42,7 +49,7 @@ axios.get('https://v-archive.net/db/songs.json')
     const boardList = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, "MX", "SC"];
     for(const button of [4, 5, 6, 8]){
         for(const board of boardList){
-            axios.get(`https://v-archive.net/api/archive/${accountData.nickname}/board/${button}/${board}`)
+            axios.get(`https://v-archive.net/api/archive/${account.v_archive.nickname}/board/${button}/${board}`)
             .then(body => {
                 for(const obj of body.data.floors){
                     for(const data of obj.patterns){
@@ -75,10 +82,8 @@ let lastCommandTime: number = new Date().getTime();
 
 try{
     const client = new Client({
-        identity: accountData.twitch_identity,
-        channels: [
-            'leinnesw'
-        ]
+        identity: account.twitch_identity,
+        channels: ['leinnesw']
     });
     client.on('message', (channel, user, msg, self) => {
         if(self){
@@ -86,10 +91,7 @@ try{
         }
         processPrecommand(msg, user, (m: string) => client.say(channel, m));
     });
-    client.connect()
-    .then(() => {
-        console.log('[하판봇] 트위치에 연결되었습니다.');
-    });
+    client.connect().then(() => console.log('[하판봇] 트위치에 연결되었습니다.'));
 }catch{
     console.log('[하판봇] 트위치에 연결되지 않았습니다');
 }
@@ -112,10 +114,10 @@ function sendScore(song: Song, difficulty: Difficulty, rate: number, maxCombo: b
         score: rate,
         maxCombo: maxCombo ? 1 : 0
     };
-    axios.post(`https://v-archive.net/client/open/${account.id}/score`, data, {
+    axios.post(`https://v-archive.net/client/open/${account.v_archive.id}/score`, data, {
         headers: {
             "Content-Type": `application/json`,
-            "Authorization": `${account.token}`
+            "Authorization": `${account.v_archive.token}`
         }
     })
     .then(body => {
