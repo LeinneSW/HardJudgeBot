@@ -192,7 +192,7 @@ function processPrecommand(msg: string, user: JSONData, output: (msg: string) =>
 
 function processCommand(command: string, args: string[], user: JSONData, output: (m: string) => void){
     if(command === "저장" || command === "기갱"){
-        if(user.mod !== true && (!user.badges || !user.badges.broadcaster)){
+        if(!user.mod && user.badges?.broadcaster !== '1'){
             output(`[하판봇] 하판 기록 저장은 관리자만 가능합니다.`);
             return;
         }
