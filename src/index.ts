@@ -12,8 +12,8 @@ console.log('[하판봇] 하판봇이 시작됩니다.');
 
 const account: JSONData = (() => {
     const account = JSON.parse(fs.readFileSync('./resources/account.json', 'utf-8'));
-    if(!account.v_archive || !account.twitch_identity?.username || !account.twitch_identity?.password){
-        throw new Error("[하판봇] account.json 파일이 잘못되었습니다.");
+    if(typeof account.v_archive !== 'object' || !account.v_archive.nickname){
+        throw new Error("[하판봇] v archive 계정 정보가 잘못되었거나 없습니다.");
     }
     
     if(!account.v_archive.id || !account.v_archive.token){
@@ -25,6 +25,17 @@ const account: JSONData = (() => {
         account.v_archive.token = data[1];
         fs.unlinkSync('./resources/account.txt');
         fs.writeFileSync('./resources/account.json', JSON.stringify(account, null, 4), 'utf-8');
+    }
+
+    if(
+        typeof account.twitch !== 'object' ||
+        typeof account.twitch.identity !== 'object' ||
+        !account.twitch.username || !account.twitch.password ||
+        typeof account.twitch.channels !== 'object' || account.twitch.channels.length < 1
+    ){
+        delete account.twitch;
+        console.log("[하판봇] 트위치 계정 정보가 잘못되었습니다. 트위치 연결을 해제합니다.");
+        return account;
     }
     return account;
 })();
@@ -59,10 +70,9 @@ axios.get('https://v-archive.net/db/songs.json')
                             if(difficulty === null){
                                 continue;
                             }
+
                             const song = SongFactory.get(data.title);
-                            if(!song){
-                                //console.log(data.name);
-                            }else{
+                            if(!!song){ // 예외처리한 곡이 v archive에 있는 경우가 있을 수 있음
                                 ScoreManager.setScore(song, difficulty, rate, data.maxCombo);
                             }
                         }
@@ -80,20 +90,17 @@ axios.get('https://v-archive.net/db/songs.json')
 let requestData: JSONData = {};
 let lastCommandTime: number = new Date().getTime();
 
-try{
-    const client = new Client({
-        identity: account.twitch_identity,
-        channels: ['leinnesw']
-    });
+if(!!account.twitch){
+    const client = new Client(account.twitch);
     client.on('message', (channel, user, msg, self) => {
         if(self){
             return;
         }
         processPrecommand(msg, user, (m: string) => client.say(channel, m));
     });
-    client.connect().then(() => console.log('[하판봇] 트위치에 연결되었습니다.'));
-}catch{
-    console.log('[하판봇] 트위치에 연결되지 않았습니다');
+    client.connect()
+        .then(() => console.log('[하판봇] 트위치에 연결되었습니다.'))
+        .catch(() => console.log('[하판봇] 트위치 연결에 실패했습니다.'));
 }
 
 const readline = createInterface({input: process.stdin});
