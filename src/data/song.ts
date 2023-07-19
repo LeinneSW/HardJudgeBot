@@ -40,7 +40,7 @@ export class SongFactory{
         'nonstop',
         'extended',
         'original ver',
-        "Deepin' Absonant Mix"
+        "deepin' absonant mix"
     ]
 
     static add(song: Song): void{
