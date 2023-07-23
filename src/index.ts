@@ -7,6 +7,7 @@ import { Difficulty } from "./data/difficulty";
 import { createInterface } from "readline";
 import { JSONData, SongAliases, Utils } from "./utils/utils";
 import { ScoreManager } from "./data/score";
+import { User } from "./utils/user";
 
 console.log('[하판봇] 하판봇이 시작됩니다.');
 
@@ -96,7 +97,7 @@ if(!!account.twitch){
         if(self){
             return;
         }
-        processPrecommand(msg, user, (m: string) => client.say(channel, m));
+        processPrecommand(msg, User.parse(user), (m: string) => client.say(channel, m));
     });
     client.connect()
         .then(() => console.log('[하판봇] 트위치에 연결되었습니다.'))
@@ -107,7 +108,7 @@ const readline = createInterface({input: process.stdin});
 readline.on('line', msg => {
     processPrecommand(
         msg,
-        {mod: true, 'display-name': 'console'},
+        User.CONSOLE,
         (m: string) => console.log(m)
     )
 });
@@ -144,47 +145,42 @@ function sendScore(song: Song, difficulty: Difficulty, rate: number, maxCombo: b
     });
 }
 
-function processPrecommand(msg: string, user: JSONData, output: (msg: string) => void): void{
+function processPrecommand(msg: string, user: User, output: (msg: string) => void): void{
     const args = Utils.parseCommand(msg);
     if(args.length < 1){
         return;
-    }else if(new Date().getTime() - lastCommandTime < 1000){ // 글로벌 쿨타임
+    }else if(new Date().getTime() - lastCommandTime < 500){ // 글로벌 쿨타임
         return;
     }
     
     const command = args.shift() + "";
-    if('songList' in requestData){
-        if(new Date().getTime() - requestData['updateTime'] < 15000){
-            if(user['display-name'] === requestData['username'] && command.length === 1){
-                const index = parseInt(command);
-                if(!isNaN(index)){
-                    if(requestData.songList.length >= index){
-                        const song = requestData.songList[index - 1];
-                        switch(requestData.type){
-                            case 0: // send score
-                                sendScore(song, requestData.difficulty, requestData.rate, requestData.maxCombo, output);
-                                return;
-                            case 1:
-                                const scoreData = ScoreManager.getScore(song, requestData.difficulty);
-                                if(scoreData.rate > 0){
-                                    output(`[하판봇] ${song.toString(requestData.difficulty)}: ${scoreData}`);
-                                }else{
-                                    output(`[하판봇] ${song.toString(requestData.difficulty)}: 기록 없음`);
-                                }
-                                return;
-                            case 2:
-                                const alias = SongAliases.setAlias(requestData.alias, song);
-                                output(`[하판봇] 축약어를 등록하였습니다. (${alias})`);
-                                break;
-                        }
-                    }else if(requestData.songList.length + 1 === index && requestData.type === 2){
-                        const alias = SongAliases.setAlias(requestData.alias, requestData.name);
-                        output(`[하판봇] 축약어를 등록하였습니다. (${alias})`);
+    if(user.id in requestData){
+        const data = requestData[user.id];
+        if(new Date().getTime() - data.updateTime < 15000){
+            const index = parseInt(command);
+            if(!isNaN(index)){
+                if(data.songList.length >= index){
+                    const song = data.songList[index - 1];
+                    switch(data.type){
+                        case 0: // send score
+                            sendScore(song, data.difficulty, data.rate, data.maxCombo, output);
+                            return;
+                        case 1:
+                            const scoreData = ScoreManager.getScore(song, data.difficulty);
+                            output(`[하판봇] ${song.toString(data.difficulty)}: ${scoreData.rate > 0 ? scoreData : '기록 없음'}`);
+                            return;
+                        case 2:
+                            const alias = SongAliases.setAlias(data.alias, song);
+                            output(`[하판봇] 축약어를 등록하였습니다. (${alias})`);
+                            break;
                     }
+                }else if(data.songList.length + 1 === index && data.type === 2){
+                    const alias = SongAliases.setAlias(data.alias, data.name);
+                    output(`[하판봇] 축약어를 등록하였습니다. (${alias})`);
                 }
             }
         }else{
-            requestData = {};
+            delete requestData[user.id];
         }
     }
     if(!command || command[0] !== "!"){
@@ -199,74 +195,93 @@ function processPrecommand(msg: string, user: JSONData, output: (msg: string) =>
     );
 }
 
-function processCommand(command: string, args: string[], user: JSONData, output: (m: string) => void){
-    if(command === "저장" || command === "기갱"){
-        if(!user.mod && user.badges?.broadcaster !== '1'){
-            output(`[하판봇] 하판 기록 저장은 관리자만 가능합니다.`);
+function processCommand(command: string, args: string[], user: User, output: (m: string) => void): void{
+    if(command === '하판'){
+        if(args.length < 2){
+            output(`[하판봇] !${command} <곡명[||DLC]> <난이도> ${user.moderator ? '[레이트] [풀콤]' : ''}`);
             return;
         }
-        
-        if(args.length < 3){
-            output(`[하판봇] !${command} <곡명[||DLC/작곡가]> <난이도> <레이트> [풀콤]`);
-            return;
-        }
-        
-        let maxCombo = false;
-        const lastData = args.pop() + '';
-        let rate = parseFloat(lastData);
-        if(isNaN(rate)){ // 풀콤 여부 검증
-            const rateData = args.pop() + '';
-            rate = parseFloat(rateData);
-            if(isNaN(rate)){
-                output(`[하판봇] 올바른 레이트값을 입력해주세요. (입력값: ${rateData}, ${lastData})`);
+
+        // ------------ RATE, MAXCOMBO CHECK PHASE ------------
+        let diffStr, rate = null, maxCombo = false;
+        if(user.moderator && args.length > 2){
+            const pop = args.pop() + ''
+            if(Difficulty.parse(pop) !== null){ // 마지막 인자가 난이도인 경우
+                diffStr = pop;
+            }else{ // 기록을 하려는 의도일 확률이 높음
+                rate = parseFloat(pop);
+                if(isNaN(rate)){ // 풀콤 여부를 기록했을 가능성 판단
+                    const pop2 = args.pop() + ''
+                    rate = parseFloat(pop2);
+                    if(isNaN(rate)){
+                        output(`[하판봇] 올바른 레이트값을 입력해주세요. (입력값: ${pop2}, ${pop})`);
+                        return;
+                    }else{
+                        rate = Math.min(rate, 100);
+                        maxCombo = true;
+                    }
+                }else{
+                    rate = Math.min(rate, 100);
+                    maxCombo = rate >= 100;
+                }
+            }
+
+            if(rate !== null && rate < 0.01){
+                output(`[하판봇] 레이트는 0.01% ~ 100.00% 사이의 값만 가능합니다.`);
                 return;
             }
-            maxCombo = true;
         }
-        if(isNaN(rate)){
-            output(`[하판봇] 올바른 레이트값을 입력해주세요. (입력값: ${lastData})`);
-            return;
-        }
-        if(rate < 0.01 || rate > 100){
-            output(`[하판봇] 레이트는 0.01% ~ 100.00% 사이의 값만 가능합니다.`);
-            return;
-        }
+        // ------------ RATE, MAXCOMBO CHECK FINISH ------------
 
-        maxCombo = rate > 99.99 || maxCombo;
-        const btnDiff = args.pop() + '';
-        const phase = findSongWithDifficultyPhase(args.join(" "), btnDiff, user['display-name']);
-        if(typeof phase === 'string'){
-            if('songList' in requestData){
-                requestData.type = 0;
-                requestData.rate = rate;
-                requestData.maxCombo = maxCombo;
-            }
-            output(phase);
+        // ------------ DIFFICULTY CHECK PHASE ------------
+        diffStr = diffStr || args.pop() + '';
+        const difficulty = Difficulty.parse(diffStr);
+        if(difficulty === null){
+            output(`[하판봇] '${diffStr}'은(는) 올바른 난이도가 아닙니다. (예: 5sc)`);
             return;
         }
-        sendScore(phase[0], phase[1], rate, maxCombo, output);
-    }else if(command === "점수" || command === "기록"){
-        if(args.length < 2){
-            output(`[하판봇] !${command} <곡명[||DLC]> <난이도>`);
+        // ------------ DIFFICULTY CHECK FINISH ------------
+
+        // ------------ SONG FIND PHASE ------------
+        const songInfo = args.join(" ");
+        const findSongList = findSongPhase(songInfo);
+        if(findSongList.length < 1){
+            output(`[하판봇] '${songInfo}'에 해당되는 곡을 찾을 수 없었습니다.`);
             return;
         }
         
-        const btnDiff = args.pop() + '';
-        const phase = findSongWithDifficultyPhase(args.join(" "), btnDiff, user['display-name']);
-        if(typeof phase === 'string'){
-            if('songList' in requestData){
-                requestData.type = 1;
-            }
-            output(phase);
+        const newSongList = findSongList.filter(song => song.havePattern(difficulty));
+        if(newSongList.length < 1){
+            output(`[하판봇] 검색된 곡 내에서 해당 난이도(${difficulty.toStringButton()})가 존재하는 곡이 없습니다.`);
             return;
+        }else if(newSongList.length > 1){
+            if(newSongList.length <= 3){
+                requestData[user.id] = {
+                    type: rate !== null ? 0 : 1,
+                    songList: newSongList,
+                    difficulty: difficulty,
+                    updateTime: new Date().getTime(),
+                };
+                if(rate !== null){
+                    requestData[user.id].rate = rate;
+                    requestData[user.id].maxCombo = maxCombo;
+                }
+                output(`[하판봇] 중복 발견. 번호를 입력해주세요. ${newSongList.map((s, index) => `${index + 1}. ${s.name}(${s.dlc})`).join(', ')}`);
+                return;
+            }else{
+                output(`[하판봇] 중복되는 곡이 많습니다. 이름을 정확히 입력해주세요.`);
+                return;
+            }
         }
+        // ------------ SONG FIND FINISH ------------
 
-        let [song, difficulty] = phase;
-        const scoreData = ScoreManager.getScore(song, difficulty);
-        if(scoreData.rate > 0){
-            output(`[하판봇] ${song.toString(difficulty)}: ${scoreData}`);
+        const song = findSongList[0];
+        if(rate !== null){
+            sendScore(song, difficulty, rate, maxCombo, output);
+            return;
         }else{
-            output(`[하판봇] ${song.toString(difficulty)}: 기록 없음`);
+            const scoreData = ScoreManager.getScore(song, difficulty);
+            output(`[하판봇] ${song.toString(difficulty)}: ${scoreData.rate > 0 ? scoreData : '기록 없음'}`);
         }
     }else if(command === "축약"){
         if(args.length < 2){
@@ -285,18 +300,17 @@ function processCommand(command: string, args: string[], user: JSONData, output:
             return findSongList;
         }else if(findSongList.length > 1){
             if(findSongList.length <= 3){
-                requestData = {
+                requestData[user.id] = {
                     type: 2,
                     alias: alias,
                     songList: findSongList,
-                    username: user['display-name'],
                     updateTime: new Date().getTime(),
                 };
                 const first = findSongList[0].name;
                 const sameList = findSongList.filter(song => song.name === first);
                 let songOutput = findSongList.map((s, index) => `${index + 1}. ${s.name}(${s.dlc})`).join(', ');
                 if(sameList.length === findSongList.length){
-                    requestData.name = first;
+                    requestData[user.id].name = first;
                     songOutput += `, ${findSongList.length + 1}. ${first}(이름만 축약)`
                 }
                 output(`[하판봇] 중복 발견. 번호를 입력해주세요. ${songOutput}`);
@@ -313,7 +327,7 @@ function processCommand(command: string, args: string[], user: JSONData, output:
     }
 }
 
-function findSongPhase(nameData: string): string | Song[]{
+function findSongPhase(nameData: string): Song[]{
     let songInfo = nameData.split("||").map(v => v.trim());
     let name = songInfo[0].toLowerCase();
     let dlc = null;
@@ -332,49 +346,13 @@ function findSongPhase(nameData: string): string | Song[]{
             [name, composer] = checkAlias.split("||");
         }
     }
-    let findSongList;
+    let findSongList = null;
     if(checkESTi){
         findSongList = SongFactory.findByESTi(name);
     }else if(!!dlc){
         findSongList = SongFactory.findByDLC(name, dlc);
     }else if(!!composer){
         findSongList = SongFactory.findByComposer(name, composer);
-    }else{
-        findSongList = SongFactory.find(name);
     }
-
-    if(findSongList.length < 1){
-        return `[하판봇] '${songInfo[0]}${songInfo.length > 1 ? `(${songInfo[1]})` : ""}'에 해당되는 곡을 찾을 수 없었습니다.`;
-    }
-    return findSongList;
-}
-
-function findSongWithDifficultyPhase(nameData: string, btnDiff: string, username: string): string | any[]{
-    const difficulty = Difficulty.parse(btnDiff);
-    if(difficulty === null){
-        return `[하판봇] 키 또는 난이도가 잘못되었습니다. (예: 5sc, 입력값: ${btnDiff})`;
-    }
-
-    let findSongList = findSongPhase(nameData);
-    if(typeof findSongList === 'string'){
-        return findSongList;
-    }
-    
-    const newSongList = findSongList.filter(song => song.havePattern(difficulty));
-    if(newSongList.length < 1){
-        return `[하판봇] 검색된 곡 내에서 해당 난이도(${difficulty.toStringButton()})가 존재하는 곡이 없습니다.`;
-    }else if(newSongList.length > 1){
-        if(newSongList.length <= 3){
-            requestData = {
-                songList: newSongList,
-                difficulty: difficulty,
-                username: username,
-                updateTime: new Date().getTime(),
-            };
-            return `[하판봇] 중복 발견. 번호를 입력해주세요. ${newSongList.map((s, index) => `${index + 1}. ${s.name}(${s.dlc})`).join(', ')}`;
-        }else{
-            return `[하판봇] 중복되는 곡이 많습니다. 이름을 정확히 입력해주세요.`;
-        }
-    }
-    return [newSongList[0], difficulty];
+    return findSongList || SongFactory.find(name);
 }
