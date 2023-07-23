@@ -323,7 +323,7 @@ function processCommand(command: string, args: string[], user: User, output: (m:
         const aliasData = SongAliases.setAlias(alias, findSongList[0]);
         output(`[하판봇] 축약어를 등록하였습니다. (${aliasData})`);
     }else if(command === "페이지"){
-        output('[하판봇] v-archive: https://v-archive.net/archive/lei_hard/board');
+        output(`[하판봇] v-archive: https://v-archive.net/archive/${account.v_archive.nickname}/board`);
     }
 }
 
